@@ -397,21 +397,21 @@
 
             <!-- Download Buttons -->
             <div class="download-buttons">
-                <button class="download-btn" onclick="initiateDownload('no_watermark')">
+                <button class="download-btn" data-download-type="no_watermark">
                     <svg class="icon" viewBox="0 0 24 24">
                         <path d="M12 2C13.1 2 14 2.9 14 4V12L15.5 10.5L16.92 11.92L12 16.84L7.08 11.92L8.5 10.5L10 12V4C10 2.9 10.9 2 12 2ZM21 15L18 12H20C20.6 12 21 12.4 21 13V20C21 20.6 20.6 21 20 21H4C3.4 21 3 20.6 3 20V13C3 12.4 3.4 12 4 12H6L3 15H5V19H19V15H21Z"/>
                     </svg>
                     Download HD (No Watermark)
                 </button>
 
-                <button class="download-btn" onclick="initiateDownload('mp3')">
+                <button class="download-btn" data-download-type="mp3">
                     <svg class="icon" viewBox="0 0 24 24">
                         <path d="M12,3V13.55C11.41,13.21 10.73,13 10,13A3,3 0 0,0 7,16A3,3 0 0,0 10,19A3,3 0 0,0 13,16V7H16V5H12V3Z"/>
                     </svg>
                     Extract Audio (MP3)
                 </button>
 
-                <button class="download-btn" onclick="initiateDownload('with_watermark')">
+                <button class="download-btn" data-download-type="with_watermark">
                     <svg class="icon" viewBox="0 0 24 24">
                         <path d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
                     </svg>
@@ -487,6 +487,17 @@
                 } else {
                     hideVideoPreview();
                 }
+            });
+
+            // Add event listeners for download buttons using data attributes
+            const downloadButtons = document.querySelectorAll('.download-btn');
+            downloadButtons.forEach((button) => {
+                button.addEventListener('click', function() {
+                    const downloadType = this.getAttribute('data-download-type');
+                    if (downloadType) {
+                        initiateDownload(downloadType);
+                    }
+                });
             });
         }
 
