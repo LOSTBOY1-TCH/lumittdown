@@ -17,9 +17,16 @@ app.use(
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        scriptSrcAttr: ["'unsafe-inline'"], // This allows inline event handlers
         imgSrc: ["'self'", "data:", "https:", "blob:"],
-        connectSrc: ["'self'", "https://tikwm.com", "https://api.tiklydown.eu.org", "https://api.ssyoutube.com"],
+        connectSrc: [
+          "'self'",
+          "https://tikwm.com",
+          "https://api.tiklydown.eu.org",
+          "https://api.ssyoutube.com",
+          "https://api-toxxic.zone.id",
+        ],
         mediaSrc: ["'self'", "https:", "blob:"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
