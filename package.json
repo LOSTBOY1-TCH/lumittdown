@@ -18,16 +18,17 @@
     "helmet": "^7.1.0",
     "compression": "^1.7.4",
     "morgan": "^1.10.0",
-    "axios": "^1.6.2"
+    "node-fetch": "^3.3.2",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=16.0.0",
     "npm": ">=8.0.0"
   },
-  "repository": {
+ "repository": {
     "type": "git",
     "url": "https://github.com/LOSTBOY1-TCH/lumittdown.git"
   },
