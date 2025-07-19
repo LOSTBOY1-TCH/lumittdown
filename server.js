@@ -4,7 +4,7 @@ const helmet = require("helmet")
 const compression = require("compression")
 const morgan = require("morgan")
 const path = require("path")
-const fetch = require("node-fetch")
+const axios = require("axios")
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -33,7 +33,7 @@ app.use(
   cors({
     origin:
       process.env.NODE_ENV === "production"
-        ? ["https://your-domain.com"] // Replace with your actual domain
+        ? ["https://luminattdown.zone.id"] 
         : ["http://localhost:3000", "http://127.0.0.1:3000"],
     credentials: true,
   }),
@@ -52,6 +52,32 @@ app.use(
   }),
 )
 
+// Rate limiting storage
+const rateLimit = {}
+const RATE_LIMIT_WINDOW = 60000 // 1 minute
+const RATE_LIMIT_MAX = 30 // 30 requests per minute
+
+// Rate limiting middleware
+app.use("/api/", (req, res, next) => {
+  const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress
+  const now = Date.now()
+
+  if (!rateLimit[clientIP]) {
+    rateLimit[clientIP] = { count: 1, resetTime: now + RATE_LIMIT_WINDOW }
+  } else if (now > rateLimit[clientIP].resetTime) {
+    rateLimit[clientIP] = { count: 1, resetTime: now + RATE_LIMIT_WINDOW }
+  } else if (rateLimit[clientIP].count >= RATE_LIMIT_MAX) {
+    return res.status(429).json({
+      error: "Too many requests",
+      message: "Please wait before making more requests",
+    })
+  } else {
+    rateLimit[clientIP].count++
+  }
+
+  next()
+})
+
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({
@@ -59,6 +85,7 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: "1.0.0",
+    node_version: process.version,
   })
 })
 
@@ -98,16 +125,17 @@ app.get("/api/video-info", async (req, res) => {
 
     for (const api of apis) {
       try {
-        const response = await fetch(api.url, {
+        const response = await axios.get(api.url, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            Accept: "application/json",
           },
-          timeout: 10000,
+          timeout: 15000,
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          videoData = api.parser(data)
+        if (response.status === 200 && response.data) {
+          videoData = api.parser(response.data)
           if (videoData) break
         }
       } catch (error) {
@@ -119,7 +147,7 @@ app.get("/api/video-info", async (req, res) => {
     if (!videoData) {
       return res.status(404).json({
         error: "Video not found or unavailable",
-        details: lastError?.message,
+        details: lastError?.message || "All APIs failed",
       })
     }
 
@@ -159,63 +187,70 @@ app.get("/api/download", async (req, res) => {
       })
     }
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    })
-
-    if (!response.ok) {
-      return res.status(404).json({
-        error: "File not found",
+    // Validate URL
+    try {
+      new URL(url)
+    } catch {
+      return res.status(400).json({
+        error: "Invalid URL format",
       })
     }
 
+    const response = await axios({
+      method: "GET",
+      url: url,
+      responseType: "stream",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      },
+      timeout: 30000,
+    })
+
     // Set appropriate headers
-    const contentType = response.headers.get("content-type") || "application/octet-stream"
-    const contentLength = response.headers.get("content-length")
+    const contentType = response.headers["content-type"] || "application/octet-stream"
+    const contentLength = response.headers["content-length"]
 
     res.setHeader("Content-Type", contentType)
     res.setHeader("Content-Disposition", `attachment; filename="${filename || "download"}"`)
+    res.setHeader("Access-Control-Allow-Origin", "*")
 
     if (contentLength) {
       res.setHeader("Content-Length", contentLength)
     }
 
     // Stream the file
-    response.body.pipe(res)
+    response.data.pipe(res)
+
+    // Handle stream errors
+    response.data.on("error", (error) => {
+      console.error("Stream error:", error)
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Download stream failed" })
+      }
+    })
   } catch (error) {
     console.error("Download error:", error)
+
+    if (error.code === "ECONNABORTED") {
+      return res.status(408).json({
+        error: "Download timeout",
+        message: "The download took too long to complete",
+      })
+    }
+
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: "File not found",
+        message: "The requested file could not be found",
+      })
+    }
+
     res.status(500).json({
       error: "Download failed",
       message: process.env.NODE_ENV === "development" ? error.message : "Something went wrong",
     })
   }
-})
-
-// Rate limiting for API endpoints
-const rateLimit = {}
-const RATE_LIMIT_WINDOW = 60000 // 1 minute
-const RATE_LIMIT_MAX = 30 // 30 requests per minute
-
-app.use("/api/", (req, res, next) => {
-  const clientIP = req.ip || req.connection.remoteAddress
-  const now = Date.now()
-
-  if (!rateLimit[clientIP]) {
-    rateLimit[clientIP] = { count: 1, resetTime: now + RATE_LIMIT_WINDOW }
-  } else if (now > rateLimit[clientIP].resetTime) {
-    rateLimit[clientIP] = { count: 1, resetTime: now + RATE_LIMIT_WINDOW }
-  } else if (rateLimit[clientIP].count >= RATE_LIMIT_MAX) {
-    return res.status(429).json({
-      error: "Too many requests",
-      message: "Please wait before making more requests",
-    })
-  } else {
-    rateLimit[clientIP].count++
-  }
-
-  next()
 })
 
 // Serve the main HTML file for all non-API routes
@@ -255,12 +290,23 @@ process.on("SIGINT", () => {
   })
 })
 
+// Clean up rate limit storage periodically
+setInterval(() => {
+  const now = Date.now()
+  Object.keys(rateLimit).forEach((ip) => {
+    if (now > rateLimit[ip].resetTime) {
+      delete rateLimit[ip]
+    }
+  })
+}, RATE_LIMIT_WINDOW)
+
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`
 🔥 Lumina TikTok Downloader Server Started!
 🌐 Server running on: http://localhost:${PORT}
 🚀 Environment: ${process.env.NODE_ENV || "development"}
+📦 Node.js version: ${process.version}
 ⚡ Ready to download TikTok videos!
     `)
 })
